@@ -1,98 +1,296 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Backend SYNAP - Proyecto de Titulación
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend desarrollado con **NestJS 11**, **TypeORM** y **MySQL** para el proyecto de certificados SYNAP.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Tecnologías Implementadas
 
-## Description
+- **NestJS 11**: Framework de Node.js para aplicaciones del lado del servidor
+- **TypeORM**: ORM para trabajar con bases de datos
+- **MySQL**: Base de datos relacional
+- **class-validator**: Validación de datos
+- **@nestjs/config**: Manejo de variables de entorno
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Estructura del Proyecto
 
-## Project setup
-
-```bash
-$ npm install
+```
+src/
+├── modules/              # Módulos de la aplicación
+│   └── users/           # Módulo de ejemplo (Users)
+│       ├── entities/    # Entidades de base de datos
+│       ├── dto/         # Data Transfer Objects (validación)
+│       ├── users.controller.ts   # Rutas HTTP
+│       ├── users.service.ts      # Lógica de negocio
+│       └── users.module.ts       # Configuración del módulo
+├── app.module.ts        # Módulo principal
+└── main.ts             # Punto de entrada
 ```
 
-## Compile and run the project
+## Configuración Inicial
+
+### 1. Instalar dependencias
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm install
 ```
 
-## Run tests
+### 2. Configurar variables de entorno
+
+Copia el archivo `.env.example` a `.env` y configura tus valores:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+cp .env.example .env
 ```
 
-## Deployment
+Edita el archivo `.env`:
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+```env
+# Desarrollo
+PORT=3001
+DB_HOST=localhost
+DB_PORT=3306
+DB_USERNAME=root
+DB_PASSWORD=tu_password
+DB_DATABASE=synap_db
+NODE_ENV=development
+FRONTEND_URL=http://localhost:3000
+```
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### 3. Crear la base de datos
+
+Entra a MySQL y crea la base de datos:
+
+```sql
+CREATE DATABASE synap_db;
+```
+
+### 4. Ejecutar el proyecto
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+# Desarrollo (con hot-reload)
+npm run start:dev
+
+# Producción
+npm run build
+npm run start:prod
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+El servidor estará corriendo en `http://localhost:3001`
 
-## Resources
+## Cambiar entre Desarrollo y Producción
 
-Check out a few resources that may come in handy when working with NestJS:
+### En el archivo `.env`:
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+**Desarrollo:**
+```env
+PORT=3001
+DB_HOST=localhost
+DB_USERNAME=root
+DB_PASSWORD=
+DB_DATABASE=synap_db
+NODE_ENV=development
+FRONTEND_URL=http://localhost:3000
+```
 
-## Support
+**Producción (descomenta y configura):**
+```env
+PORT=3001
+DB_HOST=tu-servidor-produccion.com
+DB_USERNAME=usuario_prod
+DB_PASSWORD=password_seguro_prod
+DB_DATABASE=synap_db_prod
+NODE_ENV=production
+FRONTEND_URL=https://tu-dominio.com
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## Arquitectura - Cómo Crear un Nuevo Módulo
 
-## Stay in touch
+### Paso 1: Crear la estructura de carpetas
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+```bash
+mkdir -p src/modules/mi-modulo/entities
+mkdir -p src/modules/mi-modulo/dto
+```
 
-## License
+### Paso 2: Crear la Entidad
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+`src/modules/mi-modulo/entities/mi-entidad.entity.ts`
+
+```typescript
+import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+
+@Entity('nombre_tabla')
+export class MiEntidad {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column()
+  nombre: string;
+}
+```
+
+### Paso 3: Crear los DTOs
+
+`src/modules/mi-modulo/dto/create-mi-entidad.dto.ts`
+
+```typescript
+import { IsString, IsNotEmpty } from 'class-validator';
+
+export class CreateMiEntidadDto {
+  @IsString()
+  @IsNotEmpty()
+  nombre: string;
+}
+```
+
+### Paso 4: Crear el Servicio
+
+`src/modules/mi-modulo/mi-modulo.service.ts`
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { MiEntidad } from './entities/mi-entidad.entity';
+
+@Injectable()
+export class MiModuloService {
+  constructor(
+    @InjectRepository(MiEntidad)
+    private readonly repository: Repository<MiEntidad>,
+  ) {}
+
+  async findAll() {
+    return await this.repository.find();
+  }
+}
+```
+
+### Paso 5: Crear el Controlador
+
+`src/modules/mi-modulo/mi-modulo.controller.ts`
+
+```typescript
+import { Controller, Get } from '@nestjs/common';
+import { MiModuloService } from './mi-modulo.service';
+
+@Controller('mi-modulo')
+export class MiModuloController {
+  constructor(private readonly service: MiModuloService) {}
+
+  @Get()
+  findAll() {
+    return this.service.findAll();
+  }
+}
+```
+
+### Paso 6: Crear el Módulo
+
+`src/modules/mi-modulo/mi-modulo.module.ts`
+
+```typescript
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { MiModuloService } from './mi-modulo.service';
+import { MiModuloController } from './mi-modulo.controller';
+import { MiEntidad } from './entities/mi-entidad.entity';
+
+@Module({
+  imports: [TypeOrmModule.forFeature([MiEntidad])],
+  controllers: [MiModuloController],
+  providers: [MiModuloService],
+  exports: [MiModuloService],
+})
+export class MiModuloModule {}
+```
+
+### Paso 7: Registrar en app.module.ts
+
+```typescript
+import { MiModuloModule } from './modules/mi-modulo/mi-modulo.module';
+
+@Module({
+  imports: [
+    // ... otras importaciones
+    MiModuloModule,
+  ],
+})
+export class AppModule {}
+```
+
+## Endpoints del Módulo Users (Ejemplo)
+
+- `GET /users` - Obtener todos los usuarios
+- `GET /users/:id` - Obtener un usuario por ID
+- `POST /users` - Crear un usuario
+- `PATCH /users/:id` - Actualizar un usuario
+- `DELETE /users/:id` - Eliminar un usuario
+
+### Ejemplo de petición POST:
+
+```json
+{
+  "email": "usuario@ejemplo.com",
+  "nombre": "Juan",
+  "apellido": "Pérez"
+}
+```
+
+## Conceptos Importantes
+
+### Entity (Entidad)
+Representa una tabla en la base de datos. Cada propiedad es una columna.
+
+### DTO (Data Transfer Object)
+Valida los datos que llegan del frontend. Usa decoradores de `class-validator`.
+
+### Service (Servicio)
+Contiene la lógica de negocio. Interactúa con la base de datos.
+
+### Controller (Controlador)
+Define las rutas HTTP y conecta las peticiones con los servicios.
+
+### Module (Módulo)
+Agrupa entities, services, y controllers relacionados.
+
+## Buenas Prácticas
+
+1. **Siempre valida los datos** con DTOs
+2. **Separa la lógica de negocio** en servicios
+3. **Usa transacciones** para operaciones múltiples
+4. **Maneja errores** con excepciones de NestJS
+5. **Documenta tu código** con comentarios
+6. **No expongas datos sensibles** en las respuestas
+
+## Scripts Disponibles
+
+```bash
+npm run start:dev    # Desarrollo con hot-reload
+npm run build        # Compilar para producción
+npm run start:prod   # Ejecutar en producción
+npm run lint         # Linter
+npm run format       # Formatear código
+```
+
+## Notas Importantes
+
+- **TypeORM synchronize**: Está activado solo en desarrollo. En producción usa migraciones.
+- **CORS**: Está configurado para aceptar peticiones del frontend
+- **Validación Global**: Todas las peticiones son validadas automáticamente
+
+## Para Producción
+
+1. Cambia `NODE_ENV=production` en `.env`
+2. Configura las credenciales de la base de datos de producción
+3. Desactiva `synchronize` (ya está configurado automáticamente)
+4. Usa un gestor de procesos como PM2:
+
+```bash
+npm install -g pm2
+npm run build
+pm2 start dist/main.js --name synap-backend
+```
+
+---
+
+**Proyecto desarrollado para titulación - SYNAP**
