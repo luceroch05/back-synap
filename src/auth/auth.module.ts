@@ -27,6 +27,6 @@ import { Usuario } from '../modules/usuarios/entities/usuario.entity';
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],
-  exports: [AuthService],
+  exports: [AuthService, PassportModule, JwtStrategy],
 })
 export class AuthModule {}

@@ -4,7 +4,10 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { Rol } from '../../roles/entities/rol.entity';
 
 /**
  * Entidad Usuario - representa la tabla 'usuarios' en la base de datos
@@ -32,6 +35,10 @@ export class Usuario {
 
   @Column({ name: 'rol_id' })
   rolId: number;
+
+  @ManyToOne(() => Rol, (rol) => rol.usuarios)
+  @JoinColumn({ name: 'rol_id' })
+  rol: Rol;
 
   @Column({ type: 'boolean', default: true })
   activo: boolean;
