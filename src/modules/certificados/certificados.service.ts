@@ -164,8 +164,7 @@ export class CertificadosService {
   ): Promise<Certificado> {
     const certificado = await this.findOne(id);
 
-    // Buscar el estado "Anulado" (asumiendo que tiene ID 2, ajustar según tus datos)
-    const estadoAnuladoId = 2; // Esto debería venir de un enum o constante
+    const estadoAnuladoId = 3; // 3 = ANULADO
 
     certificado.estadoId = estadoAnuladoId;
     certificado.userActualizaId = userId;
@@ -281,7 +280,7 @@ export class CertificadosService {
     const certificado = this.certificadoRepository.create({
       inscripcionId: dto.inscripcionId,
       fechaEmision: new Date(),
-      estadoId: 1, // 1 = Válido
+      estadoId: 2, // 2 = EMITIDO
       userCreaId: userId,
     });
 
