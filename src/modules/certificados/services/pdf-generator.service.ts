@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import * as puppeteer from 'puppeteer';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as QRCode from 'qrcode';
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const PDFDocument = require('pdfkit');
 
 export interface DatosPDF {
   titulo: string;
@@ -31,15 +33,17 @@ export interface ParametrosPDF {
   firmas?: FirmaPDF[];
   datos: DatosPDF;
   codigo: string;
+  codigoTexto?: string;
   qrDataURL?: string;
   outputPath: string;
 }
 
+// Escala: el viewport HTML era 1122px x 794px mapeado a A4 landscape (841.89 x 595.28 pt)
+// 1px CSS = 0.75pt
+const PX = 0.75;
+
 @Injectable()
 export class PdfGeneratorService {
-  /**
-   * Generar código QR como Data URL
-   */
   async generarQR(texto: string): Promise<string> {
     try {
       return await QRCode.toDataURL(texto, {
@@ -53,515 +57,288 @@ export class PdfGeneratorService {
     }
   }
 
-  /**
-   * Convertir archivo local a Data URL base64
-   */
-  private convertirADataURL(rutaArchivo: string): string {
-    if (!rutaArchivo) return '';
+  private convertirABuffer(rutaOUrl: string): Buffer | null {
+    if (!rutaOUrl) return null;
 
-    // Si ya es una URL http/https o data URL, devolverla tal cual
-    if (
-      rutaArchivo.startsWith('http') ||
-      rutaArchivo.startsWith('data:')
-    ) {
-      return rutaArchivo;
+    if (rutaOUrl.startsWith('data:')) {
+      const parts = rutaOUrl.split(',');
+      if (parts.length < 2) return null;
+      return Buffer.from(parts[1], 'base64');
     }
 
-    // Construir ruta absoluta desde la carpeta public
-    const rutaAbsoluta = path.join(process.cwd(), 'public', rutaArchivo);
+    if (rutaOUrl.startsWith('http')) return null;
 
-    console.log(`📁 Convirtiendo archivo: ${rutaAbsoluta}`);
-
+    const rutaAbsoluta = path.join(process.cwd(), 'public', rutaOUrl);
     if (!fs.existsSync(rutaAbsoluta)) {
       console.error(`❌ Archivo no encontrado: ${rutaAbsoluta}`);
-      return '';
+      return null;
     }
 
     try {
-      const buffer = fs.readFileSync(rutaAbsoluta);
-      const extension = path.extname(rutaAbsoluta).substring(1);
-      const mimeType = this.obtenerMimeType(extension);
-      const base64 = buffer.toString('base64');
-
-      console.log(`✅ Archivo convertido (${buffer.length} bytes)`);
-      return `data:${mimeType};base64,${base64}`;
+      return fs.readFileSync(rutaAbsoluta);
     } catch (error) {
-      console.error(`❌ Error al convertir archivo: ${error.message}`);
-      return '';
+      console.error(`❌ Error al leer archivo: ${error.message}`);
+      return null;
     }
   }
 
-  /**
-   * Obtener MIME type por extensión
-   */
-  private obtenerMimeType(extension: string): string {
-    const mimeTypes: Record<string, string> = {
-      png: 'image/png',
-      jpg: 'image/jpeg',
-      jpeg: 'image/jpeg',
-      gif: 'image/gif',
-      svg: 'image/svg+xml',
-      webp: 'image/webp',
-    };
-
-    return mimeTypes[extension.toLowerCase()] || 'image/png';
-  }
-
-  /**
-   * Generar certificado PDF
-   */
   async generarCertificadoPDF(params: ParametrosPDF): Promise<void> {
-    const {
-      plantillaFondo,
-      logoEmpresa,
-      logos,
-      firmas,
-      datos,
-      codigo,
-      outputPath,
-    } = params;
+    const { plantillaFondo, logos, firmas, datos, codigo, codigoTexto, outputPath } = params;
+    const codigoMostrar = codigoTexto ?? codigo;
 
-    let browser: puppeteer.Browser | null = null;
+    const directorioSalida = path.dirname(outputPath);
+    if (!fs.existsSync(directorioSalida)) {
+      fs.mkdirSync(directorioSalida, { recursive: true });
+    }
 
-    try {
-      // Generar QR code
-      let qrDataURL = params.qrDataURL;
-      if (!qrDataURL) {
-        qrDataURL = await this.generarQR(codigo);
-      }
+    let qrDataURL = params.qrDataURL;
+    if (!qrDataURL) {
+      qrDataURL = await this.generarQR(codigo);
+    }
 
-      // Lanzar navegador
-      browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      });
+    let cuerpoFinal = datos.cuerpo
+      .replace(/\{nombre\}/gi, datos.nombre)
+      .replace(/\{curso\}/gi, datos.curso)
+      .replace(/\{fecha\}/gi, datos.fecha)
+      .replace(/\{horas\}/gi, datos.horas || '');
 
-      const page = await browser.newPage();
+    if (cuerpoFinal.length > 300) {
+      cuerpoFinal = cuerpoFinal.substring(0, 300) + '...';
+    }
 
-      // Configurar viewport para A4 landscape
-      await page.setViewport({
-        width: 1122, // A4 landscape en píxeles a 96 DPI
-        height: 794,
-      });
+    return new Promise((resolve, reject) => {
+      try {
+        const doc = new PDFDocument({
+          size: 'A4',
+          layout: 'landscape',
+          margin: 0,
+          info: { Title: datos.titulo, Author: 'SYNAP' },
+        });
 
-      // Procesar texto del cuerpo con variables
-      let cuerpoFinal = datos.cuerpo
-        .replace(/\{nombre\}/gi, datos.nombre)
-        .replace(/\{curso\}/gi, datos.curso)
-        .replace(/\{fecha\}/gi, datos.fecha)
-        .replace(/\{horas\}/gi, datos.horas || '');
+        const writeStream = fs.createWriteStream(outputPath);
+        doc.pipe(writeStream);
 
-      // Limitar longitud del texto
-      const MAX_CARACTERES = 300;
-      const esTextoLargo = cuerpoFinal.length > 200;
+        // A4 landscape en puntos (72 dpi)
+        const W = 841.89;
+        const H = 595.28;
 
-      if (cuerpoFinal.length > MAX_CARACTERES) {
-        cuerpoFinal = cuerpoFinal.substring(0, MAX_CARACTERES) + '...';
-      }
+        // ── FONDO ──────────────────────────────────────────────────────
+        const fondoBuffer = this.convertirABuffer(plantillaFondo);
+        if (fondoBuffer) {
+          doc.image(fondoBuffer, 0, 0, { width: W, height: H });
+        }
 
-      const claseTexto = esTextoLargo ? 'cuerpo texto-largo' : 'cuerpo';
+        // ── LOGOS (absolutos: top:20px, left/right:60px, 180x120px) ───
+        // CSS: top:20px→15pt, w:180px→135pt, h:120px→90pt
+        const LOGO_W = 180 * PX;  // 135pt
+        const LOGO_H = 120 * PX;  // 90pt
+        const LOGO_Y = 20 * PX;   // 15pt
+        const LOGO_SIDE = 60 * PX; // 45pt desde los bordes
 
-      // Convertir imágenes a Data URLs
-      const fondoDataURL = this.convertirADataURL(plantillaFondo);
-      const logoDataURL = logoEmpresa ? this.convertirADataURL(logoEmpresa) : '';
-
-      // Convertir logos a Data URLs
-      const logosDataURL: { url: string; posicion: 1 | 2 | 3 }[] = [];
-      if (logos && logos.length > 0) {
-        for (const logo of logos) {
-          const logoBase64 = this.convertirADataURL(logo.url);
-          if (logoBase64) {
-            logosDataURL.push({ url: logoBase64, posicion: logo.posicion });
+        if (logos && logos.length > 0) {
+          for (const logo of logos) {
+            const buf = this.convertirABuffer(logo.url);
+            if (!buf) continue;
+            let x: number;
+            if (logo.posicion === 1) x = LOGO_SIDE;
+            else if (logo.posicion === 2) x = W - LOGO_W - LOGO_SIDE;
+            else x = (W - LOGO_W) / 2;
+            doc.image(buf, x, LOGO_Y, { fit: [LOGO_W, LOGO_H] });
           }
         }
-      }
 
-      // Convertir firmas a Data URLs
-      const firmasDataURL: { nombre: string; cargo: string; url: string }[] = [];
-      if (firmas && firmas.length > 0) {
-        for (const firma of firmas) {
-          const firmaBase64 = this.convertirADataURL(firma.firmaUrl);
-          if (firmaBase64) {
-            firmasDataURL.push({
-              nombre: firma.nombre,
-              cargo: firma.cargo,
-              url: firmaBase64,
-            });
+        // ── CONTENIDO CENTRAL ─────────────────────────────────────────
+        // El "centro" CSS es flex con justify-content:center en el área:
+        //   y desde ~49pt hasta ~531pt (disponible: ~482pt)
+        // Calculamos alturas reales para centrar verticalmente
+
+        // Font sizes: CSS px * 0.75
+        const tituloSize = 32 * PX;   // 24pt
+        const nombreSize = 42 * PX;   // 31.5pt
+        const esTextoLargo = cuerpoFinal.length > 200;
+        const cuerpoSize = (esTextoLargo ? 18 : 20) * PX; // 13.5pt o 15pt
+        const cursoSize = 22 * PX;    // 16.5pt
+
+        // Ancho disponible para textos (contenido padding 80px + centro padding 100px = 180px cada lado)
+        const textWidth = W - 2 * (80 + 100) * PX; // ~570pt
+
+        // Calcular alturas de cada bloque
+        doc.font('Helvetica-Bold').fontSize(tituloSize);
+        const tituloH = doc.heightOfString(datos.titulo, { width: textWidth });
+
+        doc.font('Times-Roman').fontSize(nombreSize);
+        const nombreH = doc.heightOfString(datos.nombre, { width: textWidth, lineGap: 2 });
+
+        doc.font('Helvetica').fontSize(cuerpoSize);
+        const cuerpoH = doc.heightOfString(cuerpoFinal, { width: textWidth, lineGap: 4 });
+
+        doc.font('Times-Italic').fontSize(cursoSize);
+        const cursoStr = `"${datos.curso}"`;
+        const cursoH = doc.heightOfString(cursoStr, { width: textWidth, lineGap: 2 });
+
+        // Márgenes entre elementos (CSS margins convertidos)
+        const mTituloBottom = 20 * PX;  // 15pt
+        const mNombreTop = 15 * PX;     // 11.25pt
+        const mNombreBottom = 20 * PX;  // 15pt
+        const mCuerpoTop = 15 * PX;     // 11.25pt
+        const mCuerpoBottom = 20 * PX;  // 15pt
+        const mCursoTop = 15 * PX;      // 11.25pt
+
+        const blockHeight =
+          tituloH + mTituloBottom +
+          mNombreTop + nombreH + mNombreBottom +
+          mCuerpoTop + cuerpoH + mCuerpoBottom +
+          mCursoTop + cursoH;
+
+        // Área vertical disponible para el centro
+        const centroAreaTop = (35 - 10 + 40) * PX;  // 48.75pt
+        const centroAreaBottom = H - (22.5 + 42);    // ~531pt
+        const centroAreaH = centroAreaBottom - centroAreaTop; // ~482pt
+
+        // Y de inicio del bloque de texto (centrado verticalmente)
+        let currentY = centroAreaTop + (centroAreaH - blockHeight) / 2;
+        if (currentY < centroAreaTop) currentY = centroAreaTop;
+
+        const textX = (80 + 100) * PX; // ~135pt desde el borde
+
+        // Título
+        doc.font('Helvetica-Bold')
+          .fontSize(tituloSize)
+          .fillColor('#1a365d')
+          .text(datos.titulo, textX, currentY, { width: textWidth, align: 'center', characterSpacing: 1.1 });
+        currentY += tituloH + mTituloBottom;
+
+        // Nombre
+        currentY += mNombreTop;
+        doc.font('Times-Roman')
+          .fontSize(nombreSize)
+          .fillColor('#0f172a')
+          .text(datos.nombre, textX, currentY, { width: textWidth, align: 'center', lineGap: 2 });
+        currentY += nombreH + mNombreBottom;
+
+        // Cuerpo
+        currentY += mCuerpoTop;
+        doc.font('Helvetica')
+          .fontSize(cuerpoSize)
+          .fillColor('#475569')
+          .text(cuerpoFinal, textX, currentY, { width: textWidth, align: 'center', lineGap: 4 });
+        currentY += cuerpoH + mCuerpoBottom;
+
+        // Curso
+        currentY += mCursoTop;
+        doc.font('Times-Italic')
+          .fontSize(cursoSize)
+          .fillColor('#1e40af')
+          .text(cursoStr, textX, currentY, { width: textWidth, align: 'center', lineGap: 2 });
+
+        // ── PIE: FECHA Y HORAS ────────────────────────────────────────
+        // CSS: .pie padding 0 50px, margin-bottom 10px, align flex-end
+        // .datos font-size 16px, color #64748b
+        const pieX = (80 + 50) * PX;   // contenido padding + pie padding = 97.5pt
+        const pieSize = 16 * PX;        // 12pt
+        const pieY = H - (22.5 + 10 * PX + pieSize * 1.4 * 2); // ~537pt
+        doc.font('Helvetica')
+          .fontSize(pieSize)
+          .fillColor('#64748b')
+          .text(`Fecha: ${datos.fecha}`, pieX, pieY);
+        if (datos.horas) {
+          doc.text(`Duración: ${datos.horas} horas`, pieX, pieY + pieSize * 1.4);
+        }
+
+        // ── QR (absoluto: bottom:40px, right:70px, 100x100px) ─────────
+        const QR_SIZE = 100 * PX;       // 75pt
+        const qrX = W - 70 * PX - QR_SIZE;  // ~714pt
+        const qrY2 = H - 40 * PX - QR_SIZE; // ~490pt
+        const qrBuffer = this.convertirABuffer(qrDataURL);
+        if (qrBuffer) {
+          doc.image(qrBuffer, qrX, qrY2, { width: QR_SIZE, height: QR_SIZE });
+        }
+        // Código bajo el QR
+        doc.font('Courier')
+          .fontSize(9 * PX)
+          .fillColor('#94a3b8')
+          .text(codigoMostrar, qrX - 4, qrY2 + QR_SIZE + 6 * PX, {
+            width: QR_SIZE + 10 * PX,
+            align: 'center',
+          });
+
+        // ── FIRMAS (absoluto: bottom:75px) ────────────────────────────
+        // firma-item width 180px→135pt, firma-imagen 160x60px→120x45pt
+        if (firmas && firmas.length > 0) {
+          const SIG_ITEM_W = 180 * PX;   // 135pt
+          const SIG_IMG_W = 160 * PX;    // 120pt
+          const SIG_IMG_H = 60 * PX;     // 45pt
+          const SIG_OVERLAP = 12 * PX;   // margin-bottom -12px de la imagen
+          const sigBottom = 75 * PX;     // 56.25pt desde abajo
+
+          // gaps según cantidad de firmas (CSS)
+          let gap: number;
+          if (firmas.length === 1) gap = 0;
+          else if (firmas.length === 2) gap = 150 * PX; // 112.5pt
+          else gap = 80 * PX;                            // 60pt
+
+          const totalW = firmas.length * SIG_ITEM_W + (firmas.length - 1) * gap;
+
+          // Altura total del bloque firma
+          const lineH = 1.5;
+          const nameSize = 11 * PX;    // ~8pt
+          const cargoSize = 9 * PX;    // ~6.75pt
+          const firmaBlockH = SIG_IMG_H - SIG_OVERLAP + lineH + 3 + nameSize * 1.3 + cargoSize * 1.3;
+
+          const firmasTopY = H - sigBottom - firmaBlockH;
+          let sigX = (W - totalW) / 2;
+
+          for (const firma of firmas) {
+            const firmaBuffer = this.convertirABuffer(firma.firmaUrl);
+            const imgX = sigX + (SIG_ITEM_W - SIG_IMG_W) / 2;
+            if (firmaBuffer) {
+              doc.image(firmaBuffer, imgX, firmasTopY, { fit: [SIG_IMG_W, SIG_IMG_H] });
+            }
+
+            // Línea separadora
+            const lineY = firmasTopY + SIG_IMG_H - SIG_OVERLAP;
+            doc.moveTo(sigX, lineY)
+              .lineTo(sigX + SIG_ITEM_W, lineY)
+              .strokeColor('#475569')
+              .lineWidth(1.5)
+              .stroke();
+
+            // Nombre
+            doc.font('Helvetica-Bold')
+              .fontSize(nameSize)
+              .fillColor('#1e293b')
+              .text(firma.nombre, sigX, lineY + 3, { width: SIG_ITEM_W, align: 'center' });
+
+            // Cargo
+            doc.font('Helvetica-Oblique')
+              .fontSize(cargoSize)
+              .fillColor('#64748b')
+              .text(firma.cargo, sigX, lineY + 3 + nameSize * 1.3, { width: SIG_ITEM_W, align: 'center' });
+
+            sigX += SIG_ITEM_W + gap;
           }
         }
+
+        // ── FOOTER TEXT (absoluto: bottom:10px) ──────────────────────
+        doc.font('Helvetica')
+          .fontSize(10 * PX)
+          .fillColor('#9ca3af')
+          .text('Certificado generado por SYNAP - Sistema de Certificación', 0, H - 10 * PX - 10, {
+            width: W,
+            align: 'center',
+          });
+
+        doc.end();
+
+        writeStream.on('finish', () => {
+          console.log(`✅ PDF generado: ${outputPath}`);
+          resolve();
+        });
+        writeStream.on('error', reject);
+      } catch (error) {
+        console.error('❌ Error al generar PDF:', error);
+        reject(error);
       }
-
-      // Generar HTML del certificado
-      const html = this.generarHTMLCertificado({
-        fondoDataURL,
-        logoDataURL,
-        logosDataURL,
-        firmasDataURL,
-        datos,
-        cuerpoFinal,
-        claseTexto,
-        codigo,
-        qrDataURL,
-      });
-
-      // Cargar contenido HTML
-      await page.setContent(html, { waitUntil: 'networkidle0' });
-
-      // Asegurar que el directorio de salida existe
-      const directorioSalida = path.dirname(outputPath);
-      if (!fs.existsSync(directorioSalida)) {
-        fs.mkdirSync(directorioSalida, { recursive: true });
-      }
-
-      // Generar PDF
-      await page.pdf({
-        path: outputPath,
-        format: 'A4',
-        landscape: true,
-        printBackground: true,
-        margin: {
-          top: 0,
-          right: 0,
-          bottom: 0,
-          left: 0,
-        },
-      });
-
-      console.log(`✅ PDF generado exitosamente: ${outputPath}`);
-    } catch (error) {
-      console.error('❌ Error al generar PDF:', error);
-      throw error;
-    } finally {
-      if (browser) {
-        await browser.close();
-      }
-    }
-  }
-
-  /**
-   * Generar HTML del certificado
-   */
-  private generarHTMLCertificado(params: {
-    fondoDataURL: string;
-    logoDataURL: string;
-    logosDataURL: { url: string; posicion: 1 | 2 | 3 }[];
-    firmasDataURL: { nombre: string; cargo: string; url: string }[];
-    datos: DatosPDF;
-    cuerpoFinal: string;
-    claseTexto: string;
-    codigo: string;
-    qrDataURL: string;
-  }): string {
-    const {
-      fondoDataURL,
-      logoDataURL,
-      logosDataURL,
-      firmasDataURL,
-      datos,
-      cuerpoFinal,
-      claseTexto,
-      codigo,
-      qrDataURL,
-    } = params;
-
-    return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      width: 297mm;
-      height: 210mm;
-      position: relative;
-      font-family: 'Arial', 'Helvetica', sans-serif;
-      overflow: hidden;
-    }
-
-    .fondo {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      z-index: 0;
-    }
-
-    .contenido {
-      position: relative;
-      z-index: 1;
-      width: 100%;
-      height: 100%;
-      padding: 35px 80px 30px 80px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-
-    .logo-izquierda {
-      position: absolute;
-      top: 20px;
-      left: 60px;
-      width: 180px;
-      height: 120px;
-      object-fit: contain;
-    }
-
-    .logo-derecha {
-      position: absolute;
-      top: 20px;
-      right: 60px;
-      width: 180px;
-      height: 120px;
-      object-fit: contain;
-    }
-
-    .logo-centro {
-      position: absolute;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 180px;
-      height: 120px;
-      object-fit: contain;
-    }
-
-    .centro {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      text-align: center;
-      padding: 40px 100px 0 100px;
-      margin-top: -10px;
-    }
-
-    .titulo {
-      font-size: 32px;
-      font-weight: bold;
-      color: #1a365d;
-      margin-bottom: 20px;
-      text-transform: uppercase;
-      letter-spacing: 1.5px;
-    }
-
-    .nombre {
-      font-size: 42px;
-      font-weight: bold;
-      color: #0f172a;
-      margin: 15px 0 20px 0;
-      font-family: 'Georgia', 'Times New Roman', serif;
-      line-height: 1.2;
-      max-width: 900px;
-    }
-
-    .cuerpo {
-      font-size: 20px;
-      color: #475569;
-      line-height: 1.6;
-      max-width: 880px;
-      margin: 15px 0 20px 0;
-    }
-
-    .cuerpo.texto-largo {
-      font-size: 18px;
-      line-height: 1.5;
-    }
-
-    .curso {
-      font-size: 22px;
-      font-style: italic;
-      color: #1e40af;
-      margin: 15px 0 0 0;
-      font-family: 'Georgia', 'Times New Roman', serif;
-      line-height: 1.3;
-      max-width: 800px;
-    }
-
-    .pie {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-end;
-      padding: 0 50px;
-      margin-bottom: 10px;
-    }
-
-    .datos {
-      font-size: 16px;
-      color: #64748b;
-      line-height: 1.4;
-    }
-
-    .qr-container {
-      position: absolute;
-      bottom: 40px;
-      right: 70px;
-      text-align: center;
-    }
-
-    .qr {
-      width: 100px;
-      height: 100px;
-      margin-bottom: 6px;
-    }
-
-    .codigo {
-      font-size: 9px;
-      color: #94a3b8;
-      font-family: 'Courier New', monospace;
-      word-break: break-all;
-      max-width: 110px;
-    }
-
-    .footer-text {
-      position: absolute;
-      bottom: 10px;
-      left: 0;
-      right: 0;
-      text-align: center;
-      font-size: 10px;
-      color: #9ca3af;
-    }
-
-    .firmas-container {
-      position: absolute;
-      bottom: 75px;
-      left: 50%;
-      transform: translateX(-50%);
-      display: flex;
-      justify-content: center;
-      gap: 100px;
-      width: 90%;
-      max-width: 800px;
-    }
-
-    /* 1 firma: centrada */
-    .firmas-container.firmas-1 {
-      max-width: 200px;
-    }
-
-    /* 2 firmas: espaciadas */
-    .firmas-container.firmas-2 {
-      justify-content: space-between;
-      max-width: 500px;
-      gap: 150px;
-    }
-
-    /* 3 firmas: distribuidas */
-    .firmas-container.firmas-3 {
-      justify-content: space-between;
-      max-width: 750px;
-      gap: 80px;
-    }
-
-    .firma-item {
-      text-align: center;
-      flex: 0 0 auto;
-      width: 180px;
-    }
-
-    .firma-imagen {
-      width: 160px;
-      height: 60px;
-      object-fit: contain;
-      object-position: center bottom;
-      margin-bottom: -12px;
-      display: block;
-      margin-left: auto;
-      margin-right: auto;
-    }
-
-    .firma-linea {
-      border-top: 1.5px solid #475569;
-      width: 100%;
-      margin-bottom: 3px;
-    }
-
-    .firma-nombre {
-      font-size: 11px;
-      font-weight: bold;
-      color: #1e293b;
-      margin-bottom: 2px;
-    }
-
-    .firma-cargo {
-      font-size: 9px;
-      color: #64748b;
-      font-style: italic;
-    }
-  </style>
-</head>
-<body>
-  ${fondoDataURL ? `<img src="${fondoDataURL}" class="fondo" alt="Fondo">` : ''}
-
-  <div class="contenido">
-    ${logoDataURL ? `<img src="${logoDataURL}" class="logo" alt="Logo">` : ''}
-    ${logosDataURL
-      .map((logo) => {
-        const clase =
-          logo.posicion === 1
-            ? 'logo-izquierda'
-            : logo.posicion === 2
-            ? 'logo-derecha'
-            : 'logo-centro';
-        return `<img src="${logo.url}" class="${clase}" alt="Logo ${logo.posicion}">`;
-      })
-      .join('')}
-
-    <div class="centro">
-      <div class="titulo">${datos.titulo}</div>
-      <div class="nombre">${datos.nombre}</div>
-      <div class="${claseTexto}">${cuerpoFinal}</div>
-      <div class="curso">"${datos.curso}"</div>
-    </div>
-
-    <div class="pie">
-      <div class="datos">
-        <div>Fecha: ${datos.fecha}</div>
-        ${datos.horas ? `<div>Duración: ${datos.horas} horas</div>` : ''}
-      </div>
-    </div>
-
-    <div class="qr-container">
-      <img src="${qrDataURL}" class="qr" alt="QR">
-      <div class="codigo">${codigo}</div>
-    </div>
-
-    ${
-      firmasDataURL.length > 0
-        ? `
-    <div class="firmas-container firmas-${firmasDataURL.length}">
-      ${firmasDataURL
-        .map(
-          (firma) => `
-        <div class="firma-item">
-          <img src="${firma.url}" class="firma-imagen" alt="Firma ${firma.nombre}">
-          <div class="firma-linea"></div>
-          <div class="firma-nombre">${firma.nombre}</div>
-          <div class="firma-cargo">${firma.cargo}</div>
-        </div>
-      `,
-        )
-        .join('')}
-    </div>
-    `
-        : ''
-    }
-
-    <div class="footer-text">
-      Certificado generado por SYNAP - Sistema de Certificación
-    </div>
-  </div>
-</body>
-</html>
-    `;
+    });
   }
 }

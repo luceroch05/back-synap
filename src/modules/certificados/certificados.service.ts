@@ -370,7 +370,8 @@ export class CertificadosService {
           horas: `${horasAcademicas}`,
           cuerpo: `Por haber completado satisfactoriamente el ${tipoPrograma} "{curso}" con una duración de {horas} horas académicas, realizado del ${new Date(inscripcion.grupo.fechaInicio).toLocaleDateString('es-ES')} al ${new Date(inscripcion.grupo.fechaFin).toLocaleDateString('es-ES')}.`,
         },
-        codigo: certificadoGuardado.codigoUnico,
+        codigo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/validar-certificado/${certificadoGuardado.codigoUnico}`,
+        codigoTexto: certificadoGuardado.codigoUnico,
         outputPath: rutaCompleta,
       });
 

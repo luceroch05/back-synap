@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ServeStaticModule } from '@nestjs/serve-static'; // 👈 FALTABA
+import { join } from 'path'; // 👈 FALTABA
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UsuariosModule } from './modules/usuarios/usuarios.module';
@@ -23,13 +25,18 @@ import { NotasModule } from './modules/notas/notas.module';
 
 @Module({
   imports: [
-    // Configuración de variables de entorno
+    // 👇 ESTO ES LO QUE EXPONE TU CARPETA PUBLIC
+      ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'public'),
+      serveRoot: '/backend_synap', // 👈 AQUÍ ESTÁ LA MAGIA
+    }),
+  
+
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
     }),
 
-    // Configuración de TypeORM con MySQL
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
@@ -41,7 +48,6 @@ import { NotasModule } from './modules/notas/notas.module';
         database: configService.get('DB_DATABASE'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         synchronize: configService.get('NODE_ENV') === 'development',
-  
       }),
       inject: [ConfigService],
     }),
