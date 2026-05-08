@@ -164,9 +164,9 @@ export class PdfGeneratorService {
 
         // Calcular alturas de cada bloque
         doc.font('Helvetica-Bold').fontSize(tituloSize);
-        const tituloH = doc.heightOfString(datos.titulo, { width: textWidth });
+        const tituloH = doc.heightOfString(datos.titulo.toUpperCase(), { width: textWidth });
 
-        doc.font('Times-Roman').fontSize(nombreSize);
+        doc.font('Times-Bold').fontSize(nombreSize);
         const nombreH = doc.heightOfString(datos.nombre, { width: textWidth, lineGap: 2 });
 
         doc.font('Helvetica').fontSize(cuerpoSize);
@@ -205,12 +205,12 @@ export class PdfGeneratorService {
         doc.font('Helvetica-Bold')
           .fontSize(tituloSize)
           .fillColor('#1a365d')
-          .text(datos.titulo, textX, currentY, { width: textWidth, align: 'center', characterSpacing: 1.1 });
+          .text(datos.titulo.toUpperCase(), textX, currentY, { width: textWidth, align: 'center', characterSpacing: 1.125 });
         currentY += tituloH + mTituloBottom;
 
         // Nombre
         currentY += mNombreTop;
-        doc.font('Times-Roman')
+        doc.font('Times-Bold')
           .fontSize(nombreSize)
           .fillColor('#0f172a')
           .text(datos.nombre, textX, currentY, { width: textWidth, align: 'center', lineGap: 2 });
