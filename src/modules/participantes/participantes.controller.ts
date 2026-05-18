@@ -22,41 +22,12 @@ import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
  * Endpoints para gestionar participantes
  */
 @Controller('participantes')
-@UseGuards(JwtAuthGuard)
 export class ParticipantesController {
   constructor(private readonly participantesService: ParticipantesService) {}
 
   /**
-   * POST /participantes
-   * Crear un nuevo participante
-   */
-  @Post()
-  @HttpCode(HttpStatus.CREATED)
-  create(@Body() createDto: CreateParticipanteDto, @Request() req) {
-    return this.participantesService.create(createDto, req.user.id);
-  }
-
-  /**
-   * GET /participantes
-   * Listar todos los participantes
-   */
-  @Get()
-  findAll() {
-    return this.participantesService.findAll();
-  }
-
-  /**
-   * GET /participantes/activos
-   * Listar solo participantes activos
-   */
-  @Get('activos')
-  findAllActive() {
-    return this.participantesService.findAllActive();
-  }
-
-  /**
    * GET /participantes/buscar
-   * Buscar por documento
+   * Buscar por documento — público para autocompletar en inscripción pública
    */
   @Get('buscar')
   findByDocumento(
@@ -70,10 +41,42 @@ export class ParticipantesController {
   }
 
   /**
+   * POST /participantes
+   * Crear un nuevo participante
+   */
+  @Post()
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.CREATED)
+  create(@Body() createDto: CreateParticipanteDto, @Request() req) {
+    return this.participantesService.create(createDto, req.user.id);
+  }
+
+  /**
+   * GET /participantes
+   * Listar todos los participantes
+   */
+  @Get()
+  @UseGuards(JwtAuthGuard)
+  findAll() {
+    return this.participantesService.findAll();
+  }
+
+  /**
+   * GET /participantes/activos
+   * Listar solo participantes activos
+   */
+  @Get('activos')
+  @UseGuards(JwtAuthGuard)
+  findAllActive() {
+    return this.participantesService.findAllActive();
+  }
+
+  /**
    * GET /participantes/:id
    * Obtener un participante por ID
    */
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
   findOne(@Param('id') id: string) {
     return this.participantesService.findOne(+id);
   }
@@ -83,6 +86,7 @@ export class ParticipantesController {
    * Actualizar un participante
    */
   @Patch(':id')
+  @UseGuards(JwtAuthGuard)
   update(
     @Param('id') id: string,
     @Body() updateDto: UpdateParticipanteDto,
@@ -96,6 +100,7 @@ export class ParticipantesController {
    * Activar/Desactivar un participante
    */
   @Patch(':id/toggle')
+  @UseGuards(JwtAuthGuard)
   toggleActive(@Param('id') id: string, @Request() req) {
     return this.participantesService.toggleActive(+id, req.user.id);
   }
@@ -105,6 +110,7 @@ export class ParticipantesController {
    * Eliminar un participante
    */
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: string) {
     return this.participantesService.remove(+id);

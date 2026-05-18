@@ -22,17 +22,26 @@ import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
  * Endpoints para gestionar grupos de programas
  */
 @Controller('grupos-programas')
-@UseGuards(JwtAuthGuard)
 export class GruposProgramasController {
   constructor(
     private readonly gruposProgramasService: GruposProgramasService,
   ) {}
 
   /**
+   * GET /grupos-programas/publicos
+   * Listar grupos activos sin autenticación (para inscripción pública)
+   */
+  @Get('publicos')
+  findPublicos() {
+    return this.gruposProgramasService.findAllActive();
+  }
+
+  /**
    * POST /grupos-programas
    * Crear un nuevo grupo de programa
    */
   @Post()
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
   create(@Body() createDto: CreateGrupoProgramaDto, @Request() req) {
     return this.gruposProgramasService.create(createDto, req.user.id);
@@ -43,6 +52,7 @@ export class GruposProgramasController {
    * Listar todos los grupos de programas
    */
   @Get()
+  @UseGuards(JwtAuthGuard)
   findAll(@Query('programaId') programaId?: string) {
     if (programaId) {
       return this.gruposProgramasService.findByPrograma(+programaId);
@@ -55,6 +65,7 @@ export class GruposProgramasController {
    * Listar solo grupos activos
    */
   @Get('activos')
+  @UseGuards(JwtAuthGuard)
   findAllActive() {
     return this.gruposProgramasService.findAllActive();
   }
@@ -64,6 +75,7 @@ export class GruposProgramasController {
    * Obtener un grupo por ID
    */
   @Get(':id')
+  @UseGuards(JwtAuthGuard)
   findOne(@Param('id') id: string) {
     return this.gruposProgramasService.findOne(+id);
   }
@@ -73,6 +85,7 @@ export class GruposProgramasController {
    * Actualizar un grupo de programa
    */
   @Patch(':id')
+  @UseGuards(JwtAuthGuard)
   update(
     @Param('id') id: string,
     @Body() updateDto: UpdateGrupoProgramaDto,
@@ -86,6 +99,7 @@ export class GruposProgramasController {
    * Activar/Desactivar un grupo
    */
   @Patch(':id/toggle')
+  @UseGuards(JwtAuthGuard)
   toggleActive(@Param('id') id: string, @Request() req) {
     return this.gruposProgramasService.toggleActive(+id, req.user.id);
   }
@@ -95,6 +109,7 @@ export class GruposProgramasController {
    * Eliminar un grupo de programa
    */
   @Delete(':id')
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: string) {
     return this.gruposProgramasService.remove(+id);
